@@ -1,0 +1,432 @@
+// Draws the office: the room, then everyone where the scene puts them. Walks
+// run in CSS, timed against `now`, so a redraw picks a walk up where it is.
+
+import type { OfficeAct, OfficeScene, OfficeWalker } from '../../types'
+import {
+  CSS,
+  DEFS,
+  GLOWING,
+  MOTION,
+  NIGHT_LIGHTS,
+  ROOM,
+  TABLE,
+  atTable,
+  clutterAt,
+  doorOpen,
+  drawerOpen,
+  globeLand,
+  nightCss,
+  rackLights,
+  screenGlow,
+  screenOf,
+  steamAt,
+} from './art'
+import { CLUTTER, DESKS, H, JANITOR_SPEED, SOFA_SEATS, TABLE_SEATS, TITLE_BAR, W, deskOfSpot, pointOf, pointsOf } from './layout'
+import type { Clutter, Pt } from './layout'
+import { text, textWidth } from './pixel'
+import { destOf, placeOf } from './world'
+
+/** Hair, skin, shirt, trousers: Claude first, then subagents, the janitor last. */
+const LOOKS: readonly (readonly [string, string, string, string])[] = [
+  ['#5a3a24', '#f2c59b', '#d97757', '#3d4a66'],
+  ['#2b2b33', '#f0c8a0', '#4f8fc0', '#3a3f55'],
+  ['#c7843a', '#f6d2b0', '#6bab5e', '#4a4a52'],
+  ['#8a4b2a', '#d9a47a', '#b55d8a', '#33405c'],
+  ['#e3c36a', '#f6d6b8', '#5f6fd1', '#514238'],
+  ['#3a2418', '#b8835c', '#e0b04a', '#2f3a4a'],
+  ['#a33b2b', '#f4cfa8', '#4aa39a', '#3c3c48'],
+  ['#1f1f24', '#c99572', '#7d9a4a', '#2e4057'],
+  ['#6e6e78', '#f1caa6', '#8f6bc2', '#434a40'],
+  ['#2f6cb3', '#e8b98f', '#3f78c0', '#2f5a8f'],
+]
+
+const DESK_ACTS: ReadonlySet<OfficeAct> = new Set<OfficeAct>(['type', 'think', 'ask', 'rest'])
+
+const ms = (n: number): string => `${Math.round(n)}ms`
+const pct = (n: number): string => `${Number(n.toFixed(3))}%`
+
+const lookStyle = (look: number): string => {
+  const [h, s, t, p] = LOOKS[look] ?? LOOKS[1] ?? ['#000', '#000', '#000', '#000']
+
+  return `--h:${h};--s:${s};--t:${t};--p:${p}`
+}
+
+// The wait is the animation itself, not a delay before a 1 ms one: an image
+// player that skips that millisecond keeps the waiting state, and Claude stayed
+// unseen at a station until the next redraw. A short wait starts part-way
+// through 400 ms, since the app's player takes anything quicker for flashing.
+const switchAt = (name: string, wait: number): string => {
+  const run = Math.max(wait, 400)
+
+  return `animation:${name} ${ms(run)} steps(1,end) ${ms(wait - run)} both`
+}
+
+/** Shows `body` from `at` on; drawn plainly once `at` has passed. */
+const showFrom = (at: number, now: number, body: string): string =>
+  at > now ? `<g style="${switchAt('ap', at - now)}">${body}</g>` : body
+
+/** Shows `body` until `at`. */
+const showUntil = (at: number, now: number, body: string): string =>
+  at > now ? `<g style="${switchAt('hd', at - now)}">${body}</g>` : ''
+
+const use = (id: string, x: number, y: number, cls?: string): string =>
+  `<use href="#${id}" x="${x}" y="${y}"${cls === undefined ? '' : ` class="${cls}"`}/>`
+
+const shadow = (x: number, y: number): string => `<path class="shw" d="M${x - 5} ${y - 1}h10v2h-10z"/>`
+
+// ---------------------------------------------------------------- walking
+
+type Dir = 'd' | 'u' | 'r' | 'l'
+const DIRS: readonly Dir[] = ['d', 'u', 'r', 'l']
+
+type Segment = { a: Pt; len: number; dir: Dir }
+
+const segmentsOf = (points: readonly Pt[]): Segment[] => {
+  const out: Segment[] = []
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]
+    const b = points[i]
+
+    if (a === undefined || b === undefined) {
+      continue
+    }
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const len = Math.hypot(dx, dy)
+
+    if (len > 0) {
+      const dir: Dir = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'r' : 'l') : dy >= 0 ? 'd' : 'u'
+      out.push({ a, len, dir })
+    }
+  }
+
+  return out
+}
+
+const frames = (a: string, b: string): string =>
+  `${shadow(0, 0)}${use(a, -8, -21, 'fa')}${use(b, -8, -21, 'fb')}`
+
+const PERSON: Readonly<Record<Dir, string>> = {
+  d: frames('fA', 'fB'),
+  u: frames('bA', 'bB'),
+  r: frames('sA', 'sS'),
+  l: `<g transform="scale(-1 1)">${frames('sA', 'sS')}</g>`,
+}
+
+const JANITOR: Readonly<Record<Dir, string>> = {
+  d: `${PERSON.d}${use('cart', -7, -7)}`,
+  u: `${use('cart', -7, -25)}${PERSON.u}`,
+  r: `${PERSON.r}${use('cart', 6, -11)}`,
+  l: `<g transform="scale(-1 1)">${PERSON.r}${use('cart', 6, -11)}</g>`,
+}
+
+/** A walk as CSS keyframes: one move, and which way the walker faces when. */
+const walking = (walker: OfficeWalker, name: string, now: number): { css: string; svg: string } => {
+  const points = pointsOf(walker.from, walker.route)
+  const segments = segmentsOf(points)
+  const dest = points[points.length - 1]
+  const total = segments.reduce((sum, one) => sum + one.len, 0)
+
+  if (dest === undefined || total === 0 || walker.arriveAt <= now) {
+    return { css: '', svg: '' }
+  }
+  const timing = `${ms(walker.arriveAt - walker.departAt)} steps(1,end) ${ms(walker.departAt - now)} both`
+  const facing: Record<Dir, string> = { d: '', u: '', r: '', l: '' }
+  const used = new Set<Dir>()
+  let move = ''
+  let done = 0
+
+  for (const one of segments) {
+    const at = pct((done / total) * 100)
+    move += `${at}{transform:translate(${one.a[0] - dest[0]}px,${one.a[1] - dest[1]}px);animation-timing-function:steps(${Math.max(1, Math.round(one.len))},end)}`
+
+    for (const dir of DIRS) {
+      facing[dir] += `${at}{opacity:${one.dir === dir ? 1 : 0}}`
+    }
+    used.add(one.dir)
+    done += one.len
+  }
+  const look = walker.kind === 'janitor' ? JANITOR : PERSON
+  let css = `@keyframes ${name}{${move}100%{transform:translate(0px,0px)}}`
+  let body = ''
+
+  for (const dir of DIRS) {
+    if (used.has(dir)) {
+      css += `@keyframes ${name}${dir}{${facing[dir]}100%{opacity:0}}`
+      body += `<g opacity="0" style="animation:${name}${dir} ${timing}">${look[dir]}</g>`
+    }
+  }
+  const born = walker.bornAt !== undefined && now - walker.bornAt < 600 ? walker.bornAt : undefined
+  const fade = born === undefined ? '' : ` style="animation:fi 400ms steps(4,end) ${ms(born - now)} both"`
+
+  return {
+    css,
+    svg: `<g transform="translate(${dest[0]} ${dest[1]})"${fade}><g style="animation:${name} ${timing}">${body}</g></g>`,
+  }
+}
+
+// ---------------------------------------------------------------- poses
+
+const bubble = (act: OfficeAct, x: number, y: number): string => {
+  if (act === 'think') {
+    return `${use('bub', x, y)}<path class="ol d1" d="M${x + 2} ${y + 3}h1v1h-1z"/><path class="ol d2" d="M${x + 5} ${y + 3}h1v1h-1z"/><path class="ol d3" d="M${x + 8} ${y + 3}h1v1h-1z"/>`
+  }
+  if (act === 'ask') {
+    return `${use('bub', x, y)}${text('ol', '?', x + 4, y + 1)}`
+  }
+
+  return ''
+}
+
+/** What a walker looks like once there: the person, what goes over the table, its bubble. */
+type Pose = { body: string; front: string; over: string; y: number }
+
+const poseOf = (walker: OfficeWalker): Pose | undefined => {
+  const spot = destOf(walker)
+  const [x, y] = pointOf(spot)
+  const desk = deskOfSpot(spot)
+  const table = TABLE_SEATS[spot]
+  const sofa = SOFA_SEATS[spot]
+
+  if (spot === 'din') {
+    return undefined
+  }
+  if (desk !== undefined && DESK_ACTS.has(walker.act)) {
+    const at = DESKS[desk]
+
+    if (at !== undefined) {
+      const bob = walker.act === 'type' ? 'ty' : walker.act === 'think' ? 'br' : undefined
+      const left = at.cx - 8
+      const top = at.top + 6
+
+      return { body: `${use('kB', left, top, bob)}${use('chb', left, top)}`, front: '', over: bubble(walker.act, at.cx + 5, at.top - 5), y: at.top + 27 }
+    }
+  }
+  if (table !== undefined) {
+    return { ...atTable(table), over: '', y: table.y }
+  }
+  if (sofa !== undefined) {
+    return { body: `${use('kF', sofa - 8, 160)}${use('phone', sofa - 1, 172)}`, front: '', over: '', y: 180 }
+  }
+  let body: string
+
+  if (spot === 'shA' || spot === 'shB') {
+    body = `${use('rd', x - 8, y - 21)}${use('book', x - 4, y - 9)}`
+  } else if (spot === 'glA') {
+    body = use('sS', x - 8, y - 21)
+  } else if (spot === 'kw') {
+    body = use('fS', x - 8, y - 21)
+  } else {
+    body = use('bS', x - 8, y - 21)
+  }
+
+  return { body: `${shadow(x, y)}${body}`, front: '', over: bubble(walker.act, x + 3, y - 31), y }
+}
+
+// ---------------------------------------------------------------- paper
+
+/** When the janitor passes nearest to `pile`, in ms from its start. */
+const passOf = (janitor: OfficeWalker, pile: Clutter): number => {
+  const points = pointsOf(janitor.from, janitor.route)
+  const px = pile.x + 4
+  const py = pile.y - 4
+  let best = Infinity
+  let bestAt = 0
+  let done = 0
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]
+    const b = points[i]
+
+    if (a === undefined || b === undefined) {
+      continue
+    }
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const len = Math.hypot(dx, dy)
+    const k = len === 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / (len * len)))
+    const gap = Math.hypot(a[0] + dx * k - px, a[1] + dy * k - py)
+
+    if (gap < best) {
+      best = gap
+      bestAt = done + len * k
+    }
+    done += len
+  }
+
+  return (bestAt / JANITOR_SPEED) * 1000
+}
+
+const paper = (scene: OfficeScene, janitor: OfficeWalker | undefined, now: number, isOnTable: boolean): string => {
+  const level = scene.level ?? 0
+  const swept = scene.janitor !== undefined && janitor !== undefined ? scene.janitor.level : -1
+  let out = ''
+
+  for (const pile of CLUTTER) {
+    if ((pile.onTable === true) !== isOnTable) {
+      continue
+    }
+    const drawn = clutterAt(pile.x, pile.y, pile.kind)
+
+    if (pile.at <= level) {
+      out += drawn
+    } else if (janitor !== undefined && pile.at <= swept) {
+      const gone = janitor.departAt + passOf(janitor, pile)
+
+      if (gone + 600 > now) {
+        out += `<g style="animation:fo 600ms steps(3,end) ${ms(gone - now)} both">${drawn}</g>`
+      }
+    }
+  }
+
+  return out
+}
+
+// ---------------------------------------------------------------- the board
+
+const BOARD_LABEL = 'CONTEXT'
+
+const board = (level: number | undefined): string => {
+  const label = level === undefined ? '--%' : `${level}%`
+  const color = level === undefined ? 'dn' : level >= 80 ? 'lr' : level >= 50 ? 'la' : 'lg'
+  const digits = text(color, label, Math.round(331 - textWidth(label, 2) / 2), 13, 2)
+  const lit = level === undefined ? 0 : Math.round(level / 10)
+  let bar = ''
+
+  for (let i = 0; i < 10; i += 1) {
+    bar += `<path class="${i < lit ? color : 'doff'}" d="M${316 + i * 3} 24h2v2h-2z"/>`
+  }
+
+  return `<path class="sc" d="M314 6h34v20h-34z"/>${text('dl', BOARD_LABEL, Math.round(331 - textWidth(BOARD_LABEL) / 2), 7)}${digits}${bar}`
+}
+
+// ---------------------------------------------------------------- the office
+
+const isAt = (walker: OfficeWalker, spots: readonly string[], act: OfficeAct): boolean =>
+  walker.act === act && spots.includes(destOf(walker))
+
+/** The whole backdrop for this scene at `now`; `dark` draws the night whatever the mode. */
+export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boolean } = {}): string => {
+  const people = scene.walkers.filter(walker => walker.kind !== 'janitor')
+  const janitor = scene.walkers.find(walker => walker.kind === 'janitor')
+  const layer: { y: number; svg: string }[] = []
+  let css = ''
+  let front = ''
+  let over = ''
+  let back = ''
+  let glow = ''
+
+  scene.walkers.forEach((walker, i) => {
+    const walk = walking(walker, `k${i}`, now)
+    const pose = poseOf(walker)
+    const style = ` style="${lookStyle(walker.look)}"`
+    css += walk.css
+
+    if (walk.svg !== '') {
+      layer.push({ y: placeOf(walker, now)[1], svg: `<g${style}>${walk.svg}</g>` })
+    }
+    if (pose !== undefined) {
+      layer.push({ y: pose.y, svg: `<g${style}>${showFrom(walker.arriveAt, now, pose.body)}</g>` })
+      front += showFrom(walker.arriveAt, now, pose.front)
+      over += showFrom(walker.arriveAt, now, pose.over)
+    }
+    if (walker.bornAt !== undefined && now - walker.bornAt < 1600) {
+      back += showUntil(walker.bornAt + 1600, now, doorOpen())
+    }
+    if (destOf(walker) === 'din' && walker.arriveAt > now) {
+      back += showFrom(walker.arriveAt - 1200, now, doorOpen())
+    }
+  })
+
+  // Desks: a chair waits empty, or holds someone with the screen on.
+  let screens = ''
+
+  DESKS.forEach((desk, i) => {
+    const sitter = people.find(walker => walker.desk === i && deskOfSpot(destOf(walker)) === i && DESK_ACTS.has(walker.act))
+
+    // Half a row up, so a chair someone is walking to stays behind them once
+    // they sit: drawn over them it hid their shirt until the next redraw.
+    if (sitter === undefined || sitter.arriveAt > now) {
+      layer.push({
+        y: desk.top + 26.5,
+        svg: `<path class="chf" d="M${desk.cx - 5} ${desk.top + 17}h10v3h-10z"/>${use('chb', desk.cx - 8, desk.top + 6)}`,
+      })
+    }
+    if (sitter === undefined) {
+      screens += screenOf(i, 'off')
+      return
+    }
+    const mode = sitter.act === 'type' ? 'type' : 'on'
+    screens += sitter.arriveAt > now ? screenOf(i, 'off') + showFrom(sitter.arriveAt, now, screenOf(i, mode)) : screenOf(i, mode)
+    glow += showFrom(sitter.arriveAt, now, screenGlow(i))
+  })
+
+  const searcher = people.find(walker => isAt(walker, ['cbA', 'cbB'], 'search'))
+  const brewer = people.find(walker => destOf(walker) === 'cof')
+  back += searcher === undefined ? '' : showFrom(searcher.arriveAt, now, drawerOpen())
+  back += globeLand(people.some(walker => isAt(walker, ['glA', 'glB'], 'web')))
+  back += brewer === undefined ? '' : showFrom(brewer.arriveAt, now, steamAt(303, 36))
+
+  const bodies = layer
+    .sort((a, b) => a.y - b.y)
+    .map(one => one.svg)
+    .join('')
+  const busy = people.some(walker => isAt(walker, ['rkA', 'rkB'], 'bash'))
+  const lit = `${screens}${rackLights(busy)}${board(scene.level)}`
+
+  return [
+    // The top stays in view and a wide window crops the floor: the board is up there.
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${-TITLE_BAR} ${W} ${H + TITLE_BAR}" preserveAspectRatio="xMidYMin slice" shape-rendering="crispEdges">`,
+    // Long loops keep their phase across redraws instead of starting over.
+    `<style>${CSS}${MOTION}${nightCss(opts.dark === true)}.cd{animation-delay:-${now % 96_000}ms}${css}</style>`,
+    DEFS,
+    ROOM,
+    back,
+    paper(scene, janitor, now, false),
+    bodies,
+    TABLE,
+    front,
+    paper(scene, janitor, now, true),
+    `<path class="night nt" d="M0 ${-TITLE_BAR}h${W}v${H + TITLE_BAR}h-${W}z"/>`,
+    GLOWING,
+    lit,
+    over,
+    `<g class="night">${NIGHT_LIGHTS}${glow}</g>`,
+    '</svg>',
+  ].join('')
+}
+
+const ACTS: Readonly<Record<OfficeAct, string>> = {
+  type: 'is typing at the desk',
+  think: 'is thinking at the desk',
+  ask: 'is waiting for an answer',
+  rest: 'is sitting at the desk',
+  search: 'is searching the filing cabinet',
+  read: 'is reading at the bookcase',
+  bash: 'is working at the server rack',
+  web: 'is spinning the globe',
+  idle: 'is resting in the kitchen',
+  leave: 'is going home',
+}
+
+/** The backdrop in words, for a reader that cannot see it. */
+export const describeOffice = (scene: OfficeScene): string => {
+  const main = scene.walkers.find(walker => walker.kind === 'main')
+  const subs = scene.walkers.filter(walker => walker.kind === 'sub')
+  const parts = ['A pixel office.']
+
+  if (main !== undefined) {
+    parts.push(`Claude ${ACTS[main.act]}.`)
+  }
+  if (subs.length > 0) {
+    parts.push(`Subagents in the office: ${subs.length}.`)
+  }
+  parts.push(scene.level === undefined ? 'Context fill is not known yet.' : `Context is ${scene.level}% full.`)
+
+  if (scene.janitor !== undefined) {
+    parts.push('The janitor is clearing away the papers after the context was compacted.')
+  }
+
+  return parts.join(' ')
+}

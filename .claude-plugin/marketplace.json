@@ -1,0 +1,14 @@
+{
+  "name": "claude-pixel-office",
+  "owner": { "name": "spaut33" },
+  "metadata": {
+    "description": "Pixel Office: a pixel-art office behind the chat in the Claude desktop app"
+  },
+  "plugins": [
+    {
+      "name": "pixel-office",
+      "source": "./",
+      "description": "Pixel-art office behind the chat: Claude and its subagents walk to stations as tools run"
+    }
+  ]
+}

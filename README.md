@@ -1,0 +1,74 @@
+# Pixel Office
+
+A pixel-art office behind the chat in the Claude desktop app. Claude and the subagents it starts walk around the office and act out what Claude is doing: they search the filing cabinet while it greps, read at the bookcase, work at the server rack while a shell command runs, and rest in the kitchen when the turn is over.
+
+<img src="docs/office.svg" width="100%" alt="A pixel-art office seen from above: eight desks, a bookcase, a filing cabinet, a server rack, a globe and a kitchen. Claude types at its desk, subagents stand at the stations, one rests at the kitchen table.">
+
+## What happens in the office
+
+| When Claude is… | In the office it… |
+| --- | --- |
+| editing or writing files | types at its desk |
+| thinking | sits at its desk under a thought bubble |
+| waiting for your answer | sits at its desk under a question mark |
+| searching: Grep, Glob, `rg`, `grep`, `find`, `ls` | opens the filing cabinet |
+| reading: Read, a skill, `cat`, `head`, `jq` | reads at the bookcase |
+| running any other shell command | works at the server rack |
+| on the web: WebFetch, WebSearch, browser tools | spins the globe |
+| done with its turn | rests in the kitchen after a few seconds |
+
+- Each subagent walks in through the door and works at a free desk, going to the same stations for its own tools. When it finishes, it rests in the kitchen for two minutes and then goes home.
+- The board on the wall shows how full the context window is, measured like the app's context meter. It is green below 50%, amber from 50% and red from 80%. Paper piles up on the desks and the floor as the context fills.
+- After the context is compacted, a janitor comes in and clears the paper away.
+- It is day in light mode and night in dark mode.
+
+## Install
+
+In a Claude Code session in a terminal:
+
+```
+/plugin install pixel-office --marketplace spaut33/claude-pixel-office
+```
+
+Answer `y` to "Add marketplace?", then press Enter to install it for your user.
+
+From a shell:
+
+```bash
+claude plugin install pixel-office --marketplace spaut33/claude-pixel-office
+```
+
+In the Claude desktop app, where `/plugin` does not run: click **+** next to the prompt box, then **Plugins**, **Add marketplace** with `spaut33/claude-pixel-office`, then **Add plugin**.
+
+Installed for your user, the office shows up behind the chat in the desktop app's Code tab from the next session on. A terminal session has no backdrop, so there the mod draws nothing.
+
+Built and tested with Claude Code 2.1.330.
+
+## Privacy
+
+The mod makes no network requests and does not read or write files. It sees the names of the tools Claude calls, the shell command line (only to tell a search or a read from other commands), the short description of each subagent's task, and how full the context is. It keeps the office in the session's state.
+
+## Development
+
+Clone the repository and start Claude Code with the folder as a plugin directory:
+
+```bash
+git clone https://github.com/spaut33/claude-pixel-office
+claude --plugin-dir ./claude-pixel-office
+```
+
+`claude plugin validate .` checks the manifest, the marketplace file and the hooks module.
+
+| File | What it does |
+| --- | --- |
+| `hooks/register.tsx` | the hooks: tool calls, subagents, turns, compaction and the backdrop |
+| `hooks/office/world.ts` | where each worker wants to be, and the walk there |
+| `hooks/office/layout.ts` | the floor plan: walkways, desks, stations and seats |
+| `hooks/office/art.ts` | the pixel art: furniture, people and colours |
+| `hooks/office/scene.ts` | puts everyone in place and draws one animated SVG |
+| `hooks/office/pixel.ts` | drawing helpers |
+| `types/index.d.ts` | the shape of the state the mod keeps |
+
+## License
+
+[MIT](LICENSE)

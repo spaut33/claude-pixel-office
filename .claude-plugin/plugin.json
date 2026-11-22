@@ -1,0 +1,11 @@
+{
+  "name": "pixel-office",
+  "version": "0.1.0",
+  "description": "Pixel-art office behind the chat: Claude and its subagents walk to stations as tools run",
+  "author": { "name": "spaut33", "url": "https://github.com/spaut33" },
+  "homepage": "https://github.com/spaut33/claude-pixel-office",
+  "repository": "https://github.com/spaut33/claude-pixel-office",
+  "license": "MIT",
+  "keywords": ["theme", "backdrop", "pixel-art", "office"],
+  "types": "./types/index.d.ts"
+}
