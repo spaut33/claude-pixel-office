@@ -66,7 +66,8 @@ claude --plugin-dir ./claude-pixel-office
 | `hooks/register.tsx` | the hooks: tool calls, subagents, turns, compaction and the backdrop |
 | `hooks/office/world.ts` | where each worker wants to be, and the walk there |
 | `hooks/office/layout.ts` | the floor plan: walkways, desks, stations and seats |
-| `hooks/office/art.ts` | the pixel art: furniture, people and colours |
+| `hooks/office/art.ts` | the pixel art: furniture, bodies and the office's colours |
+| `hooks/office/casts.ts` | how people look: a head per model family and eight color sets each |
 | `hooks/office/scene.ts` | puts everyone in place and draws one animated SVG |
 | `hooks/office/pixel.ts` | drawing helpers |
 | `types/index.d.ts` | the shape of the state the mod keeps |
