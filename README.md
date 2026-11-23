@@ -50,7 +50,7 @@ Built and tested with Claude Code 2.1.330.
 
 ## Privacy
 
-The mod makes no network requests and does not read or write files. It sees the names of the tools Claude calls, the shell command line (only to tell a search or a read from other commands), the short description of each subagent's task, and how full the context is. It keeps the office in the session's state.
+The mod makes no network requests and does not read or write files. It sees the names of the tools Claude calls, the file paths they touch and the shell command line (only to tell a search, a read or a memory save from other commands), the short description of each subagent's task, and how full the context is. It keeps the office in the session's state: that includes each subagent's task description, which is stored as that person's name and shown in the picture's description.
 
 ## Development
 
@@ -63,6 +63,8 @@ claude --plugin-dir ./claude-pixel-office
 
 `claude plugin validate .` checks the manifest, the marketplace file and the hooks module.
 `deno test --no-check --unstable-sloppy-imports` runs the tests; CI runs both on every pull request.
+
+Type checking is not part of CI. `types/index.d.ts` extends the engine's own types, which the Claude desktop app writes to `.claude-plugin/types/` (git-ignored, next to the `tsconfig.json` that extends them) when it loads the mod from a session's dev-mods folder. Without those files `tsc` cannot resolve `claude-code`, so run it from that folder.
 
 | File | What it does |
 | --- | --- |
@@ -78,7 +80,7 @@ claude --plugin-dir ./claude-pixel-office
 
 ## Releasing
 
-1. Raise `version` in `.claude-plugin/plugin.json` in a pull request and merge it.
+1. Raise `version` in `.claude-plugin/plugin.json` and add its entry to `CHANGELOG.md` in a pull request, then merge it.
 2. Tag the merged commit on `main` and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 3. The `Release` workflow checks the tag against `plugin.json` and publishes a GitHub release with notes from the merged pull requests.
 
