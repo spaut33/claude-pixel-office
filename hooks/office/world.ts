@@ -169,8 +169,23 @@ const firstCommand = (line: string): string => {
   return ''
 }
 
-/** Which station a tool sends its caller to. */
-export const actForTool = (tool: string, command?: string): OfficeAct => {
+/** The auto-memory: a project's memory folder, or an agent's own. */
+const MEMORY_PATH = /\.claude\/(?:projects\/[^/\s]+\/memory|agent-memory(?:-local)?)\//
+
+const SAVE_TOOLS: ReadonlySet<string> = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+
+/** Whether a memory call writes: a file tool, or a shell line that redirects, copies or moves. */
+export const isMemorySave = (tool: string, command?: string): boolean =>
+  SAVE_TOOLS.has(tool) || (tool === 'Bash' && /[^2&]>|\btee\b|\bmv\b|\bcp\b/.test(command ?? ''))
+
+/** One more memory saved: one more sticky note on the fridge. */
+export const memorySaved = (intent: OfficeIntent): OfficeIntent => ({ ...intent, notes: (intent.notes ?? 0) + 1 })
+
+/** Which station a tool sends its caller to: `paths` are the files or folders it touches. */
+export const actForTool = (tool: string, command?: string, paths: readonly (string | undefined)[] = []): OfficeAct => {
+  if ([command, ...paths].some(one => one !== undefined && MEMORY_PATH.test(one))) {
+    return 'memory'
+  }
   switch (tool) {
     case 'Grep':
     case 'Glob':
@@ -243,13 +258,14 @@ export const desiredAct = (worker: OfficeWorker, now: number): OfficeAct => {
 // ---------------------------------------------------------------- spots
 
 const DESK_ACTS: ReadonlySet<OfficeAct> = new Set<OfficeAct>(['type', 'think', 'ask', 'rest'])
-const STATION_ACTS: ReadonlySet<OfficeAct> = new Set<OfficeAct>(['search', 'read', 'bash', 'web'])
+const STATION_ACTS: ReadonlySet<OfficeAct> = new Set<OfficeAct>(['search', 'read', 'bash', 'web', 'memory'])
 
 const STATION_OF: Partial<Record<OfficeAct, readonly string[]>> = {
   search: STATIONS.cabinet,
   read: STATIONS.shelf,
   bash: STATIONS.rack,
   web: STATIONS.globe,
+  memory: STATIONS.fridge,
 }
 
 export const destOf = (walker: Pick<OfficeWalker, 'route'>): string => walker.route[walker.route.length - 1] ?? 'din'
@@ -467,7 +483,7 @@ export const advance = (scene: OfficeScene, intent: OfficeIntent, now: number): 
 
   const level = intent.percent
 
-  if (level !== scene.level) {
+  if (level !== scene.level || intent.notes !== scene.notes) {
     isChanged = true
   }
   if (!isChanged) {
@@ -480,6 +496,7 @@ export const advance = (scene: OfficeScene, intent: OfficeIntent, now: number): 
       ...optional('level', level),
       ...optional('janitor', janitor),
       ...optional('cleanedAt', cleanedAt),
+      ...optional('notes', intent.notes),
     },
     departed,
   }

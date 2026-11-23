@@ -16,6 +16,8 @@ import {
   emptyIntent,
   emptyScene,
   ensureMain,
+  isMemorySave,
+  memorySaved,
   setPercent,
   spawned,
   toolFinished,
@@ -25,6 +27,13 @@ import {
 } from './office/world'
 
 const SCENE = 'office'
+
+/** A string field of a tool call's input, whichever tool it is. */
+const fieldOf = (input: object, key: string): string | undefined => {
+  const value: unknown = Reflect.get(input, key)
+
+  return typeof value === 'string' ? value : undefined
+}
 
 // Change a tag when that value's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -132,14 +141,26 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     const who = e.agentId ?? MAIN
     const id = e.tool_use_id
-    const act = actForTool(e.tool, e.tool === 'Bash' ? e.command : undefined)
+    const paths = ['file_path', 'path', 'notebook_path'].map(key => fieldOf(e, key))
+    const act = actForTool(e.tool, e.tool === 'Bash' ? e.command : undefined, paths)
 
     // Only Claude and the subagents it started: engine forks stay off the floor.
-    note($, (intent, now) => (intent.workers[who] === undefined && who !== MAIN ? intent : toolStarted(intent, who, id, act, now)))
+    // The engine's memory fork saves for Claude, so Claude goes to the fridge.
+    const isSave = act === 'memory' && isMemorySave(e.tool, e.tool === 'Bash' ? e.command : undefined)
+
+    note($, (intent, now) => {
+      const noted = isSave ? memorySaved(intent) : intent
+
+      if (who === MAIN || intent.workers[who] !== undefined) {
+        return toolStarted(noted, who, id, act, now)
+      }
+
+      return act === 'memory' ? toolStarted(noted, MAIN, id, act, now) : intent
+    })
     try {
       return await next(e)
     } finally {
-      note($, (intent, now) => toolFinished(intent, who, id, now))
+      note($, (intent, now) => toolFinished(toolFinished(intent, who, id, now), MAIN, id, now))
     }
   }).catch(($, e, next) => next(e))
 

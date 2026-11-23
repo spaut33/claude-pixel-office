@@ -9,11 +9,15 @@ import {
   MOTION,
   NIGHT_LIGHTS,
   ROOM,
+  STICKY_SPOTS,
   TABLE,
   atTable,
   clutterAt,
   doorOpen,
   drawerOpen,
+  fridgeLight,
+  fridgeOpen,
+  stickyAt,
   globeLand,
   nightCss,
   rackLights,
@@ -215,6 +219,8 @@ const poseOf = (walker: OfficeWalker): Pose | undefined => {
     body = `${use('rd', x - 8, y - 21)}${use('book', x - 4, y - 9)}`
   } else if (spot === 'glA') {
     body = use('sS', x - 8, y - 21)
+  } else if (spot === 'frA' && walker.act === 'memory') {
+    body = `<g class="rum">${use('bS', x - 8, y - 21)}</g>`
   } else if (spot === 'kw') {
     body = use('fS', x - 8, y - 21)
   } else {
@@ -368,6 +374,17 @@ export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boo
   back += globeLand(people.some(walker => isAt(walker, ['glA', 'glB'], 'web')))
   back += brewer === undefined ? '' : showFrom(brewer.arriveAt, now, steamAt(303, 36))
 
+  // The fridge: open while someone looks inside; a new sticky goes up once they are there.
+  const fridger = people.find(walker => isAt(walker, ['frA'], 'memory'))
+  back += fridger === undefined ? '' : showFrom(fridger.arriveAt, now, fridgeOpen())
+  glow += fridger === undefined ? '' : showFrom(fridger.arriveAt, now, fridgeLight())
+  const notes = Math.min(scene.notes ?? 0, STICKY_SPOTS.length)
+
+  for (let i = 0; i < notes; i += 1) {
+    const isNewest = i === notes - 1 && fridger !== undefined
+    back += isNewest ? showFrom(fridger.arriveAt + 900, now, stickyAt(i)) : stickyAt(i)
+  }
+
   const bodies = layer
     .sort((a, b) => a.y - b.y)
     .map(one => one.svg)
@@ -406,6 +423,7 @@ const ACTS: Readonly<Record<OfficeAct, string>> = {
   read: 'is reading at the bookcase',
   bash: 'is working at the server rack',
   web: 'is spinning the globe',
+  memory: 'is looking in the fridge',
   idle: 'is resting in the kitchen',
   leave: 'is going home',
 }
@@ -424,6 +442,9 @@ export const describeOffice = (scene: OfficeScene): string => {
   }
   parts.push(scene.level === undefined ? 'Context fill is not known yet.' : `Context is ${scene.level}% full.`)
 
+  if ((scene.notes ?? 0) > 0) {
+    parts.push(`Sticky notes on the fridge: ${Math.min(scene.notes ?? 0, STICKY_SPOTS.length)}.`)
+  }
   if (scene.janitor !== undefined) {
     parts.push('The janitor is clearing away the papers after the context was compacted.')
   }

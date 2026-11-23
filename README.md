@@ -15,6 +15,7 @@ A pixel-art office behind the chat in the Claude desktop app. Claude and the sub
 | reading: Read, a skill, `cat`, `head`, `jq` | reads at the bookcase |
 | running any other shell command | works at the server rack |
 | on the web: WebFetch, WebSearch, browser tools | spins the globe |
+| reading or saving its memory (the auto-memory folder) | opens the fridge and looks inside; each saved memory leaves a sticky note on the freezer door |
 | done with its turn | rests in the kitchen after a few seconds |
 
 - Each subagent walks in through the door and works at a free desk, going to the same stations for its own tools. When it finishes, it rests in the kitchen for two minutes and then goes home.

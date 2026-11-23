@@ -8,6 +8,7 @@ export type OfficeAct =
   | 'read'
   | 'bash'
   | 'web'
+  | 'memory'
   | 'idle'
   | 'leave'
 
@@ -33,6 +34,8 @@ export type OfficeIntent = {
   compactAt?: number
   compactLevel?: number
   isCompacting?: boolean
+  /** Memories saved this session: each one is a sticky note on the fridge. */
+  notes?: number
 }
 
 /** One person on the floor and the walk it is on. */
@@ -57,6 +60,7 @@ export type OfficeScene = {
   level?: number
   janitor?: { startedAt: number; level: number; arriveAt: number }
   cleanedAt?: number
+  notes?: number
 }
 
 declare module 'claude-code' {

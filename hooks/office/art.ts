@@ -35,6 +35,8 @@ export const CSS = [
   '.shw{fill:#3b2414;fill-opacity:.2}.sun{fill:#fff4c8;fill-opacity:.3}.mlt{fill:#9db8ff;fill-opacity:.16}',
   '.nt{fill:#2e3866;fill-opacity:.8;mix-blend-mode:multiply}.glow{mix-blend-mode:screen}',
   '.lc1{fill:#ffc35c;fill-opacity:.3}.lc2{fill:#ffc35c;fill-opacity:.21}.lc3{fill:#ffc35c;fill-opacity:.14}.lp{fill:#ffd27a;fill-opacity:.24}',
+  '.fi1{fill:#fbf6df}.fi2{fill:#e4dcbf}.sy1{fill:#ffe27a}.sy2{fill:#e2bf4c}.sp1{fill:#ff9fc0}.sp2{fill:#dc789c}',
+  '.sg1{fill:#a8e68a}.sg2{fill:#7cbf62}.sb1{fill:#8fd0ff}.sb2{fill:#62a6da}',
   '.night{display:none}',
 ].join('')
 
@@ -67,6 +69,9 @@ export const MOTION = [
   '@keyframes tw{0%{opacity:1}50%{opacity:.35}}.tw{animation:tw 3.2s steps(1,end) infinite}',
   '@keyframes scr{to{transform:translate(0,-8px)}}.scr{animation:scr 1.6s steps(4,end) infinite}',
   '@keyframes cb{0%{opacity:1}50%{opacity:0}}.cur{animation:cb 1.1s steps(1,end) infinite}',
+  '@keyframes rum{0%{transform:translate(0,0)}25%{transform:translate(-1px,0)}50%{transform:translate(0,0)}75%{transform:translate(1px,0)}}',
+  '.rum{animation:rum 1.6s steps(1,end) infinite}',
+  '@keyframes pk{0%{transform:translate(0,0)}50%{transform:translate(0,-2px)}}.pk{animation:pk 2.2s steps(1,end) infinite}',
 ].join('')
 
 // ---------------------------------------------------------------- sprites
@@ -308,6 +313,7 @@ const softGlow = (id: string, color: string, alpha: number): string =>
 const GRADIENTS = [
   softGlow('gc', '#9ad6ff', 0.3),
   softGlow('gh', '#ffcb7a', 0.32),
+  softGlow('gf', '#fff3cf', 0.4),
   glowStops('gg', '#6dff8a', 0.55),
 ].join('')
 
@@ -559,12 +565,12 @@ const room = (): string => {
     .rect('fr1', 353, 17, 20, 50)
     .rect('fr2', 353, 17, 20, 3)
     .rect('fr3', 353, 35, 20, 1)
-    .rect('m3', 370, 24, 1, 8)
-    .rect('m3', 370, 39, 1, 12)
-    .rect('c4', 357, 40, 2, 2)
-    .rect('c1', 361, 44, 2, 2)
-    .rect('pa1', 356, 46, 5, 6)
-    .rect('pa3', 357, 48, 3, 1)
+    .rect('m3', 355, 24, 1, 8)
+    .rect('m3', 355, 39, 1, 12)
+    .rect('c4', 367, 40, 2, 2)
+    .rect('c1', 363, 44, 2, 2)
+    .rect('pa1', 362, 46, 5, 6)
+    .rect('pa3', 363, 48, 3, 1)
     .rect('fr3', 353, 66, 20, 2)
     .rect('m4', 329, 2, 4, 2)
     .rect('r3', 312, 4, 38, 24)
@@ -713,6 +719,87 @@ export const drawerOpen = (): string =>
     .rect('m1', 188, 51, 11, 9)
     .rect('m2', 188, 59, 11, 1)
     .rect('m4', 192, 55, 3, 1)}<g class="fly">${new Painter().rect('pa1', 191, 44, 3, 2)}</g><g class="fly" style="animation-delay:-.7s">${new Painter().rect('pa2', 195, 44, 2, 2)}</g>`
+
+/**
+ * The fridge open: its door swung out on the right-hand hinges, the lit inside
+ * with three shelves of food, the jar on top lifted and put back.
+ */
+export const fridgeOpen = (): string => {
+  const p = new Painter()
+    // the inside: lit back wall, darker sides and top
+    .rect('fi1', 353, 36, 20, 30)
+    .rect('fi2', 353, 36, 20, 1)
+    .rect('fi2', 353, 36, 1, 30)
+    .rect('fi2', 372, 36, 1, 30)
+    // shelves
+    .rect('fr3', 354, 44, 18, 1)
+    .rect('fr3', 354, 52, 18, 1)
+    .rect('fr3', 354, 59, 18, 1)
+    // top shelf: a milk carton, an apple
+    .rect('ol', 356, 38, 4, 6)
+    .rect('wh', 357, 39, 2, 5)
+    .rect('c1', 357, 40, 2, 1)
+    .rect('bk1', 367, 41, 3, 3)
+    .rect('g2', 368, 40, 1, 1)
+    // middle shelf: a bottle, cheese, a sausage
+    .rect('g3', 357, 45, 1, 2)
+    .rect('g2', 356, 47, 3, 5)
+    .rect('pm2', 361, 49, 5, 3)
+    .rect('pm1', 361, 49, 5, 1)
+    .rect('pm3', 363, 50, 1, 1)
+    .rect('pt2', 367, 50, 4, 2)
+    // bottom shelf: a box, eggs
+    .rect('m2', 355, 55, 6, 4)
+    .rect('c1', 355, 55, 6, 1)
+    .rect('pa3', 363, 56, 7, 3)
+    .rect('wh', 364, 56, 2, 2)
+    .rect('wh', 367, 56, 2, 2)
+    // the crisper with greens
+    .rect('fr2', 354, 60, 18, 5)
+    .rect('g1', 356, 60, 3, 1)
+    .rect('g1', 366, 60, 3, 1)
+    // the door, open toward us: its edge and its inner shelves with bottles
+    .rect('fr3', 373, 35, 5, 33)
+    .rect('fr2', 374, 36, 3, 31)
+    .rect('m2', 374, 45, 3, 1)
+    .rect('m2', 374, 53, 3, 1)
+    .rect('m2', 374, 61, 3, 1)
+    .rect('c4', 375, 41, 1, 4)
+    .rect('lg', 374, 49, 1, 4)
+    .rect('wh', 376, 50, 1, 3)
+    .rect('pm2', 375, 58, 2, 3)
+  // the jar on the top shelf: lifted, looked at, put back
+  const jar = new Painter().rect('m4', 362, 39, 3, 1).rect('pm2', 362, 40, 3, 4).rect('pm1', 362, 40, 1, 3)
+
+  return `${p}<g class="pk">${jar}</g>`
+}
+
+/** The open fridge's light at night. */
+export const fridgeLight = (): string => `<ellipse class="glow" cx="363" cy="52" rx="16" ry="20" fill="url(#gf)"/>`
+
+/** How many sticky notes the freezer door holds. */
+export const STICKY_SPOTS: readonly (readonly [number, number])[] = [
+  [358, 21],
+  [367, 22],
+  [362, 27],
+  [357, 28],
+  [368, 29],
+  [363, 20],
+]
+const STICKY_COLORS: readonly (readonly [string, string])[] = [
+  ['sy1', 'sy2'],
+  ['sp1', 'sp2'],
+  ['sg1', 'sg2'],
+  ['sb1', 'sb2'],
+]
+
+/** The `i`th sticky note on the freezer door: a square with its curled bottom edge. */
+export const stickyAt = (i: number): string => {
+  const [x, y] = STICKY_SPOTS[i % STICKY_SPOTS.length] ?? [358, 21]
+  const [face, curl] = STICKY_COLORS[i % STICKY_COLORS.length] ?? ['sy1', 'sy2']
+
+  return String(new Painter().rect(face, x, y, 4, 3).rect(curl, x, y + 3, 3, 1).rect('sd', x + 3, y + 3, 1, 1))
+}
 
 export const globeLand = (isSpinning: boolean): string =>
   `<g clip-path="url(#glc)"><g${isSpinning ? ' class="spin"' : ''}>${bitmap(LAND, { g: 'gl2' }, GLOBE.x, GLOBE.y + 1)}${bitmap(LAND, { g: 'gl2' }, GLOBE.x + 12, GLOBE.y + 1)}</g></g>${new Painter().rect('hl', GLOBE.x + 2, GLOBE.y + 2, 2, 1).rect('hl', GLOBE.x + 2, GLOBE.y + 3, 1, 2)}`

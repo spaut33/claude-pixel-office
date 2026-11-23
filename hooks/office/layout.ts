@@ -36,6 +36,8 @@ export const V: Readonly<Record<string, Pt>> = {
   rkB: [290, TOP],
   t300: [300, TOP],
   cof: [306, TOP],
+  frB: [346, TOP],
+  frA: [361, TOP],
   m64: [64, MID],
   d0: [88, MID],
   m112: [112, MID],
@@ -77,7 +79,7 @@ export const V: Readonly<Record<string, Pt>> = {
 // Straight walkable runs; neighbours in a run are joined both ways.
 const RUNS: readonly (readonly string[])[] = [
   ['din', 'dr', 't64'],
-  ['t64', 't112', 'shA', 'shB', 't160', 'cbA', 'cbB', 't208', 't270', 'rkA', 'rkB', 't300', 'cof', 'ke'],
+  ['t64', 't112', 'shA', 'shB', 't160', 'cbA', 'cbB', 't208', 't270', 'rkA', 'rkB', 't300', 'cof', 'frB', 'frA', 'ke'],
   ['m64', 'd0', 'm112', 'd1', 'm160', 'd2', 'm208', 'd3', 'm270'],
   ['b64', 'd4', 'b112', 'd5', 'b160', 'd6', 'b208', 'd7', 'b270'],
   ['t64', 'm64', 'b64'],
@@ -245,6 +247,7 @@ export const STATIONS = {
   cabinet: ['cbA', 'cbB'],
   globe: ['glA', 'glB'],
   rack: ['rkA', 'rkB'],
+  fridge: ['frA', 'frB'],
 } as const
 
 /** The kitchen table, its long side down the room: its top's corner and size. */
