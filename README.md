@@ -62,11 +62,13 @@ claude --plugin-dir ./claude-pixel-office
 ```
 
 `claude plugin validate .` checks the manifest, the marketplace file and the hooks module.
+`deno test --no-check --unstable-sloppy-imports` runs the tests; CI runs both on every pull request.
 
 | File | What it does |
 | --- | --- |
 | `hooks/register.tsx` | the hooks: tool calls, subagents, turns, compaction and the backdrop |
 | `hooks/office/world.ts` | where each worker wants to be, and the walk there |
+| `hooks/office/world.test.ts` | tests for `world.ts` |
 | `hooks/office/layout.ts` | the floor plan: walkways, desks, stations and seats |
 | `hooks/office/art.ts` | the pixel art: furniture, bodies and the office's colours |
 | `hooks/office/casts.ts` | how people look: a head per model family and eight color sets each |
