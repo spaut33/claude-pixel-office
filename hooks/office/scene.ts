@@ -25,7 +25,7 @@ import {
   screenOf,
   steamAt,
 } from './art'
-import { CLUTTER, DESKS, H, JANITOR_SPEED, SOFA_SEATS, TABLE_SEATS, TITLE_BAR, W, deskOfSpot, pointOf, pointsOf } from './layout'
+import { CLUTTER, DESKS, H, JANITOR_SPEED, SOFA_SEATS, TABLE_SEATS, TITLE_BAR, W, deskOfSpot, lengthOf, pointOf, pointsOf } from './layout'
 import type { Clutter, Pt } from './layout'
 import { text, textWidth } from './pixel'
 import { destOf, placeOf } from './world'
@@ -168,6 +168,88 @@ const walking = (walker: OfficeWalker, name: string, now: number): { css: string
     css,
     svg: `<g transform="translate(${dest[0]} ${dest[1]})"${fade}><g style="animation:${name} ${timing}">${body}</g></g>`,
   }
+}
+
+type Layered = { y: number; svg: string }
+
+/**
+ * A walk cut where it crosses the depth of something that stands still: each
+ * piece sits at its own depth and shows only while the walker is on it. Sorted
+ * once at the walk's start, a chair below the start stayed over the walker
+ * after it went past, until the next redraw.
+ */
+const byDepth = (walker: OfficeWalker, svg: string, depths: readonly number[], now: number): Layered[] => {
+  const points = pointsOf(walker.from, walker.route)
+  const total = lengthOf(points)
+  const span = walker.arriveAt - walker.departAt
+
+  if (total === 0 || span <= 0) {
+    return [{ y: placeOf(walker, now)[1], svg }]
+  }
+  // Where along the walk it crosses a depth, and its depth halfway along each piece.
+  const cuts: number[] = [0, total]
+  const yAt = (along: number): number => {
+    let left = along
+
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1]
+      const b = points[i]
+
+      if (a === undefined || b === undefined) {
+        continue
+      }
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+
+      if (left <= len) {
+        return a[1] + (b[1] - a[1]) * (len === 0 ? 1 : left / len)
+      }
+      left -= len
+    }
+
+    return points[points.length - 1]?.[1] ?? 0
+  }
+  let done = 0
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]
+    const b = points[i]
+
+    if (a === undefined || b === undefined) {
+      continue
+    }
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+
+    for (const depth of depths) {
+      if ((a[1] - depth) * (b[1] - depth) < 0) {
+        cuts.push(done + (len * (depth - a[1])) / (b[1] - a[1]))
+      }
+    }
+    done += len
+  }
+  cuts.sort((a, b) => a - b)
+  const timeAt = (along: number): number => walker.departAt + (along / total) * span
+  const pieces: Layered[] = []
+
+  for (let i = 1; i < cuts.length; i += 1) {
+    const from = cuts[i - 1] ?? 0
+    const to = cuts[i] ?? total
+
+    if (to - from <= 0) {
+      continue
+    }
+    const start = timeAt(from)
+    const end = timeAt(to)
+    const isLast = i === cuts.length - 1
+
+    if (!isLast && end <= now) {
+      continue
+    }
+    // The last piece ends with the walk itself, which hides at arrival.
+    const until = isLast ? svg : showUntil(end, now, svg)
+    pieces.push({ y: yAt((from + to) / 2), svg: showFrom(start, now, until) })
+  }
+
+  return pieces
 }
 
 // ---------------------------------------------------------------- poses
@@ -316,7 +398,8 @@ const isAt = (walker: OfficeWalker, spots: readonly string[], act: OfficeAct): b
 export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boolean } = {}): string => {
   const people = scene.walkers.filter(walker => walker.kind !== 'janitor')
   const janitor = scene.walkers.find(walker => walker.kind === 'janitor')
-  const layer: { y: number; svg: string }[] = []
+  const layer: Layered[] = []
+  const walks: { walker: OfficeWalker; svg: string }[] = []
   let css = ''
   let front = ''
   let over = ''
@@ -330,7 +413,7 @@ export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boo
     css += walk.css
 
     if (walk.svg !== '') {
-      layer.push({ y: placeOf(walker, now)[1], svg: `<g${style}>${walk.svg}</g>` })
+      walks.push({ walker, svg: `<g${style}>${walk.svg}</g>` })
     }
     if (pose !== undefined) {
       layer.push({ y: pose.y, svg: `<g${style}>${showFrom(walker.arriveAt, now, pose.body)}</g>` })
@@ -385,6 +468,12 @@ export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boo
     back += isNewest ? showFrom(fridger.arriveAt + 900, now, stickyAt(i)) : stickyAt(i)
   }
 
+  // Walks go in last, cut at the depths of everything standing still.
+  const depths = [...new Set(layer.map(one => one.y))]
+
+  for (const one of walks) {
+    layer.push(...byDepth(one.walker, one.svg, depths, now))
+  }
   const bodies = layer
     .sort((a, b) => a.y - b.y)
     .map(one => one.svg)
