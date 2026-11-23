@@ -74,6 +74,14 @@ claude --plugin-dir ./claude-pixel-office
 | `hooks/office/pixel.ts` | drawing helpers |
 | `types/index.d.ts` | the shape of the state the mod keeps |
 
+## Releasing
+
+1. Raise `version` in `.claude-plugin/plugin.json` in a pull request and merge it.
+2. Tag the merged commit on `main` and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The `Release` workflow checks the tag against `plugin.json` and publishes a GitHub release with notes from the merged pull requests.
+
+`main` only takes changes through pull requests, merged with rebase. Release tags can't be moved or deleted.
+
 ## License
 
 [MIT](LICENSE)
