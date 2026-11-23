@@ -2,7 +2,7 @@
 
 A pixel-art office behind the chat in the Claude desktop app. Claude and the subagents it starts walk around the office and act out what Claude is doing: they search the filing cabinet while it greps, read at the bookcase, work at the server rack while a shell command runs, and rest in the kitchen when the turn is over.
 
-<img src="docs/office.svg" width="100%" alt="A pixel-art office seen from above: eight desks, a bookcase, a filing cabinet, a server rack, a globe and a kitchen. Claude types at its desk, subagents stand at the stations, one rests at the kitchen table.">
+<img src="docs/office.svg" width="100%" alt="A pixel-art office seen from above: eight desks, a bookcase, a filing cabinet, a server rack, a globe and a kitchen with a fridge. Claude types at its desk, subagents stand at the stations, one looks into the open fridge under three sticky notes, one rests at the kitchen table.">
 
 ## What happens in the office
 
