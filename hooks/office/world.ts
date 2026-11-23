@@ -158,9 +158,51 @@ export const dropWorkers = (intent: OfficeIntent, ids: readonly string[]): Offic
 const SEARCH_CMD = /^(rg|grep|egrep|fgrep|ag|ack|find|fd|ls|tree|locate)\b|^git\s+(grep|ls-files)\b/
 const READ_CMD = /^(cat|head|tail|less|more|bat|wc|jq|yq|nl|xxd|stat|file|sed\s+-n)\b/
 
+/**
+ * A shell line cut at `&&`, `||`, `;`, `|` and newlines, except inside quotes.
+ * With `blankQuotes`, the text inside quotes is dropped: what is left is what
+ * the shell itself reads as commands and redirects.
+ */
+const shellParts = (line: string, blankQuotes = false): string[] => {
+  const parts: string[] = []
+  let part = ''
+  let quote = ''
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line.charAt(i)
+
+    if (quote !== '') {
+      if (ch === '\\' && quote === '"') {
+        i += 1
+        part += blankQuotes ? '' : ch + line.charAt(i)
+      } else if (ch === quote) {
+        quote = ''
+        part += ch
+      } else if (!blankQuotes) {
+        part += ch
+      }
+    } else if (ch === '\\') {
+      i += 1
+      part += ch + line.charAt(i)
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+      part += ch
+    } else if (ch === '|' || ch === ';' || ch === '\n' || (ch === '&' && line.charAt(i + 1) === '&')) {
+      parts.push(part)
+      part = ''
+      i += ch === '&' || (ch === '|' && line.charAt(i + 1) === '|') ? 1 : 0
+    } else {
+      part += ch
+    }
+  }
+  parts.push(part)
+
+  return parts
+}
+
 /** The command a shell line runs first, past `cd`, variables and `sudo`. */
 const firstCommand = (line: string): string => {
-  for (const part of line.split(/&&|\|\||[;|\n]/)) {
+  for (const part of shellParts(line)) {
     const words = part
       .trim()
       .replace(/^(\w+=\S*\s+)+/, '')
@@ -179,9 +221,20 @@ const MEMORY_PATH = /\.claude\/(?:projects\/[^/\s]+\/memory|agent-memory(?:-loca
 
 const SAVE_TOOLS: ReadonlySet<string> = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 
-/** Whether a memory call writes: a file tool, or a shell line that redirects, copies or moves. */
+/** Words in an MCP tool's name that mean it writes. */
+const WRITE_WORDS = /create|update|save|publish|send|write|edit|delete/
+
+/** An MCP tool of a memory server: a server or tool named for memory. */
+const isMemoryTool = (tool: string): boolean => tool.startsWith('mcp__') && tool.toLowerCase().includes('memory')
+
+/**
+ * Whether a memory call writes: a file tool, an MCP memory tool that says so in
+ * its name, or a shell line that redirects, copies or moves (quoted text does not count).
+ */
 export const isMemorySave = (tool: string, command?: string): boolean =>
-  SAVE_TOOLS.has(tool) || (tool === 'Bash' && /[^2&]>|\btee\b|\bmv\b|\bcp\b/.test(command ?? ''))
+  SAVE_TOOLS.has(tool) ||
+  (isMemoryTool(tool) && WRITE_WORDS.test(tool.toLowerCase())) ||
+  (tool === 'Bash' && /[^2&]>|\btee\b|\bmv\b|\bcp\b/.test(shellParts(command ?? '', true).join(';')))
 
 /** One more memory saved: one more sticky note on the fridge. */
 export const memorySaved = (intent: OfficeIntent): OfficeIntent => ({ ...intent, notes: (intent.notes ?? 0) + 1 })
@@ -189,6 +242,9 @@ export const memorySaved = (intent: OfficeIntent): OfficeIntent => ({ ...intent,
 /** Which station a tool sends its caller to: `paths` are the files or folders it touches. */
 export const actForTool = (tool: string, command?: string, paths: readonly (string | undefined)[] = []): OfficeAct => {
   if ([command, ...paths].some(one => one !== undefined && MEMORY_PATH.test(one))) {
+    return 'memory'
+  }
+  if (isMemoryTool(tool)) {
     return 'memory'
   }
   switch (tool) {
@@ -209,7 +265,16 @@ export const actForTool = (tool: string, command?: string, paths: readonly (stri
     case 'MultiEdit':
     case 'NotebookEdit':
     case 'TodoWrite':
+    case 'TaskCreate':
+    case 'TaskUpdate':
       return 'type'
+    case 'TaskGet':
+    case 'TaskList':
+      return 'read'
+    case 'Agent':
+    case 'Task':
+    case 'SendMessage':
+      return 'think'
     case 'AskUserQuestion':
       return 'ask'
     case 'Bash': {
@@ -221,14 +286,22 @@ export const actForTool = (tool: string, command?: string, paths: readonly (stri
   if (tool.startsWith('mcp__')) {
     const name = tool.toLowerCase()
 
-    if (/browser|chrome|navigate|web|fetch|http|url|page|tab/.test(name)) {
+    // A browser's tools always go to the globe, whatever they are called;
+    // for other apps writing comes first: `notion-create-pages` is not browsing.
+    if (/browser|chrome|navigate/.test(name)) {
       return 'web'
+    }
+    if (WRITE_WORDS.test(name)) {
+      return 'type'
     }
     if (/docs?\b|read|get_|list|view/.test(name)) {
       return 'read'
     }
     if (/search|query|find|grep/.test(name)) {
       return 'search'
+    }
+    if (/web|fetch|http|url|page|tab/.test(name)) {
+      return 'web'
     }
 
     return 'type'

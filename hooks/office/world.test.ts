@@ -74,11 +74,48 @@ Deno.test('actForTool: the auto-memory folder is the fridge, whatever the tool',
 
 Deno.test('actForTool: MCP tools go by their name', () => {
   assert.equal(actForTool('mcp__chrome__navigate'), 'web')
-  assert.equal(actForTool('mcp__docs__get_page'), 'web')
+  assert.equal(actForTool('mcp__docs__get_page'), 'read')
   assert.equal(actForTool('mcp__jira__jira_get_issue'), 'read')
   assert.equal(actForTool('mcp__jira__jira_list_components'), 'read')
   assert.equal(actForTool('mcp__jira__jira_search'), 'search')
   assert.equal(actForTool('mcp__jira__jira_create_issue'), 'type')
+})
+
+Deno.test('actForTool: an app tool that writes a page is typing, not browsing', () => {
+  assert.equal(actForTool('mcp__notion__notion-create-pages'), 'type')
+  assert.equal(actForTool('mcp__notion__notion-update-page'), 'type')
+  assert.equal(actForTool('mcp__confluence__publish_page'), 'type')
+  assert.equal(actForTool('mcp__slack__send_message'), 'type')
+  assert.equal(actForTool('mcp__notion__notion-fetch'), 'web')
+  assert.equal(actForTool('mcp__tabs__tabs_context'), 'web')
+})
+
+Deno.test('actForTool: browser tools stay at the globe even when they write', () => {
+  assert.equal(actForTool('mcp__claude-in-chrome__form_input'), 'web')
+  assert.equal(actForTool('mcp__browser__create_tab'), 'web')
+})
+
+Deno.test('actForTool: any MCP memory tool is the fridge', () => {
+  assert.equal(actForTool('mcp__memory__memory_read'), 'memory')
+  assert.equal(actForTool('mcp__memory__create_entities'), 'memory')
+  assert.equal(actForTool('mcp__agents__agents_get_memory'), 'memory')
+})
+
+Deno.test('actForTool: agents, messages and task lists have their own places', () => {
+  assert.equal(actForTool('Agent'), 'think')
+  assert.equal(actForTool('SendMessage'), 'think')
+  assert.equal(actForTool('TaskCreate'), 'type')
+  assert.equal(actForTool('TaskUpdate'), 'type')
+  assert.equal(actForTool('TaskList'), 'read')
+  assert.equal(actForTool('TaskGet'), 'read')
+})
+
+Deno.test('actForTool: quotes hide pipes, semicolons and && from the command splitter', () => {
+  assert.equal(actForTool('Bash', 'rg "a|b" src'), 'search')
+  assert.equal(actForTool('Bash', "echo 'x; y' | wc -l"), 'bash')
+  assert.equal(actForTool('Bash', 'cat "a && b.txt"'), 'read')
+  assert.equal(actForTool('Bash', 'cd "my dir; x" && grep foo .'), 'search')
+  assert.equal(actForTool('Bash', 'echo \\| | rg x'), 'bash')
 })
 
 Deno.test('isMemorySave: file tools write, shell lines write only when they redirect, copy or move', () => {
@@ -93,6 +130,21 @@ Deno.test('isMemorySave: file tools write, shell lines write only when they redi
   assert.equal(isMemorySave('Bash', `cat ${MEMORY} 2>/dev/null`), false)
   assert.equal(isMemorySave('Bash', `cat ${MEMORY} 2>&1`), false)
   assert.equal(isMemorySave('Bash'), false)
+})
+
+Deno.test('isMemorySave: a > or a tee inside quotes is not a save', () => {
+  assert.equal(isMemorySave('Bash', `grep "=>" ${MEMORY}`), false)
+  assert.equal(isMemorySave('Bash', `grep 'a > b' ${MEMORY}`), false)
+  assert.equal(isMemorySave('Bash', `rg "tee|mv" ${MEMORY}`), false)
+  assert.equal(isMemorySave('Bash', `echo "x" > "${MEMORY}"`), true)
+  assert.equal(isMemorySave('Bash', `grep "a" ${MEMORY} | tee out.txt`), true)
+})
+
+Deno.test('isMemorySave: an MCP memory tool saves when its name says it writes', () => {
+  assert.equal(isMemorySave('mcp__memory__create_entities'), true)
+  assert.equal(isMemorySave('mcp__memory__memory_save'), true)
+  assert.equal(isMemorySave('mcp__memory__memory_read'), false)
+  assert.equal(isMemorySave('mcp__notion__notion-create-pages'), false)
 })
 
 Deno.test('memorySaved: each save is one more note', () => {
