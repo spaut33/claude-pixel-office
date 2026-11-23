@@ -18,6 +18,7 @@ import {
   ensureMain,
   isMemorySave,
   memorySaved,
+  setModel,
   setPercent,
   spawned,
   toolFinished,
@@ -38,7 +39,7 @@ const fieldOf = (input: object, key: string): string | undefined => {
 // Change a tag when that value's fields change: it declines what an earlier
 // version stored, which outlives a reload.
 const intentAtom = atom({ plugin: 'pixel-office', key: 'intent' } as const, emptyIntent(), { shape: 'intent-1' })
-const sceneAtom = atom({ plugin: 'pixel-office', key: 'scene' } as const, emptyScene(), { shape: 'scene-1' })
+const sceneAtom = atom({ plugin: 'pixel-office', key: 'scene' } as const, emptyScene(), { shape: 'scene-2' })
 
 // One change at a time: each job reads, changes and writes the state, and the
 // next starts only when it is done, so events and the tick never race.
@@ -104,6 +105,20 @@ const fillOf = async ($: EngineInterface, context: SessionContextUsage): Promise
   return compactWindow.tokens > 0 ? (context.tokens / compactWindow.tokens) * 100 : context.percent
 }
 
+/** Claude's model, read again at each of its turns: `/model` changes it between them. */
+const noteModel = ($: EngineInterface): void => {
+  void serial($, async () => {
+    const model = await $.session.model()
+    const now = await $.clock.now()
+    const intent = await read($, intentAtom)
+
+    if (setModel(intent, MAIN, model, now) !== intent) {
+      await update($, intentAtom, current => setModel(current, MAIN, model, now))
+      await step($)
+    }
+  })
+}
+
 let isTicking = false
 
 /** Once a second: the context window's fill, then a step. */
@@ -133,6 +148,7 @@ export const register: Register = on => {
     // Light glass: the office stays visible behind the chat, the text still reads.
     await $.theme.set({ backdrop: { scene: SCENE, glass: { blur: 2, opacity: 0.45 } } })
     note($, (intent, now) => ensureMain(intent, now))
+    noteModel($)
     $.clock.every(1000, () => tick($))
 
     return next(e)
@@ -169,7 +185,7 @@ export const register: Register = on => {
     const id = 'agentId' in started ? started.agentId : undefined
 
     if (id !== undefined) {
-      note($, (intent, now) => spawned(intent, id, e.description, now))
+      note($, (intent, now) => spawned(intent, id, e.description, now, started.model))
     }
 
     return started
@@ -177,6 +193,9 @@ export const register: Register = on => {
 
   on('turn.start', ($, e, next) => {
     note($, (intent, now) => turnStarted(intent, e.agentId ?? MAIN, now))
+    if (e.agentId === undefined) {
+      noteModel($)
+    }
 
     return next(e)
   }).catch(($, e, next) => next(e))

@@ -4,6 +4,8 @@
 
 import { DESKS, GLOBE, H, KITCHEN_TABLE, KITCHEN_X, TABLE_MIRROR, TABLE_SEATS, TITLE_BAR, W, WALL_BOTTOM } from './layout'
 import type { ClutterKind, TableSeat } from './layout'
+import { CASTS, HEADS } from './casts'
+import type { Heads } from './casts'
 import { Painter, bitmap, seeded } from './pixel'
 import type { Key } from './pixel'
 
@@ -76,47 +78,8 @@ export const MOTION = [
 
 // ---------------------------------------------------------------- sprites
 
-const CHAR: Key = { o: 'ol', h: 'hr', H: 'hr+sd', s: 'sk', k: 'ck', t: 'tp', T: 'tp+sd', w: 'wh', p: 'pn', f: 'fe' }
+const CHAR: Key = { o: 'ol', h: 'hr', H: 'hr+sd', s: 'sk', k: 'ck', t: 'tp', T: 'tp+sd', w: 'wh', p: 'pn', f: 'fe', r: 'r3' }
 
-const HEAD_F = [
-  '................',
-  '....oooooooo....',
-  '...ohhhhhhhho...',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..ohhsssssshho..',
-  '..ohssssssssho..',
-  '..ohsossssosho..',
-  '..ohsossssosho..',
-  '...okssssssko...',
-  '....oossssoo....',
-]
-const HEAD_B = [
-  '................',
-  '....oooooooo....',
-  '...ohhhhhhhho...',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..oHhhhhhhhhHo..',
-  '...oHHhhhhHHo...',
-  '....oossssoo....',
-]
-const HEAD_S = [
-  '................',
-  '....oooooooo....',
-  '...ohhhhhhhho...',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhhhho..',
-  '..ohhhhhhhssso..',
-  '..ohhhhhhsssso..',
-  '..ohhhhhhssoso..',
-  '..oHhhhhhssoso..',
-  '...oHhhhssskso..',
-  '.....oossssoo...',
-]
 const BODY_F = ['...otttwwttto...', '..otTttttttTto..', '..otTttttttTto..', '..osttttttttso..', '...oTTTTTTTTo...']
 const BODY_B = ['...otttttttto...', '..otTttttttTto..', '..otTttttttTto..', '..osttttttttso..', '...oTTTTTTTTo...']
 const BODY_S = ['....otttttto....', '....otttttto....', '....otTTTtto....', '....ottsttto....', '....oTTTTTTo....']
@@ -241,22 +204,37 @@ const LAND = [
 ]
 
 const def = (id: string, body: string): string => `<g id="${id}">${body}</g>`
-const person = (id: string, ...parts: readonly (readonly string[])[]): string => def(id, bitmap(parts.flat(), CHAR))
+
+type View = keyof Heads
+
+/**
+ * A head for one view, every cast's in it: the walker's `--c-<cast>` shows its
+ * own. Drawn after the body, so a beard or long hair hangs over the shirt.
+ */
+const head = (view: View): string =>
+  def(`h${view}`, CASTS.map(cast => `<g style="display:var(--c-${cast},none)">${bitmap(HEADS[cast][view], CHAR)}</g>`).join(''))
+
+/** A body below the head row, then the head of its view. */
+const person = (id: string, view: View, ...parts: readonly (readonly string[])[]): string =>
+  def(id, `${bitmap(parts.flat(), CHAR, 0, 11)}<use href="#h${view}"/>`)
 
 /** Every reusable drawing, referenced with <use href="#id">. */
 const SPRITES = [
-  person('fS', HEAD_F, BODY_F, LEGS),
-  person('fA', HEAD_F, BODY_F, LEGS_A),
-  person('fB', HEAD_F, BODY_F, LEGS_B),
-  person('bS', HEAD_B, BODY_B, LEGS),
-  person('bA', HEAD_B, BODY_B, LEGS_A),
-  person('bB', HEAD_B, BODY_B, LEGS_B),
-  person('sS', HEAD_S, BODY_S, LEGS_S),
-  person('sA', HEAD_S, BODY_S, LEGS_SW),
-  person('kB', HEAD_B, BODY_B),
-  person('kF', HEAD_F, BODY_HOLD, LEGS_SIT),
-  person('kS', HEAD_S, BODY_S, LEGS_SIT_S),
-  person('rd', HEAD_F, BODY_HOLD, LEGS),
+  head('f'),
+  head('b'),
+  head('s'),
+  person('fS', 'f', BODY_F, LEGS),
+  person('fA', 'f', BODY_F, LEGS_A),
+  person('fB', 'f', BODY_F, LEGS_B),
+  person('bS', 'b', BODY_B, LEGS),
+  person('bA', 'b', BODY_B, LEGS_A),
+  person('bB', 'b', BODY_B, LEGS_B),
+  person('sS', 's', BODY_S, LEGS_S),
+  person('sA', 's', BODY_S, LEGS_SW),
+  person('kB', 'b', BODY_B),
+  person('kF', 'f', BODY_HOLD, LEGS_SIT),
+  person('kS', 's', BODY_S, LEGS_SIT_S),
+  person('rd', 'f', BODY_HOLD, LEGS),
   def('chb', bitmap(CHAIR_BACK, { o: 'ol', c: 'chf', C: 'chf+sd' }, 0, 14)),
   def('bub', bitmap(BUBBLE, { o: 'ol', w: 'wh' })),
   def('book', bitmap(BOOK, { o: 'ol', w: 'pa1', b: 'bk1' })),

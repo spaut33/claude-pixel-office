@@ -25,34 +25,24 @@ import {
   screenOf,
   steamAt,
 } from './art'
+import { CLAUDE_SHIRT, JANITOR as JANITOR_LOOK, LOOKS } from './casts'
 import { CLUTTER, DESKS, H, JANITOR_SPEED, SOFA_SEATS, TABLE_SEATS, TITLE_BAR, W, deskOfSpot, lengthOf, pointOf, pointsOf } from './layout'
 import type { Clutter, Pt } from './layout'
 import { text, textWidth } from './pixel'
 import { destOf, placeOf } from './world'
-
-/** Hair, skin, shirt, trousers: Claude first, then subagents, the janitor last. */
-const LOOKS: readonly (readonly [string, string, string, string])[] = [
-  ['#5a3a24', '#f2c59b', '#d97757', '#3d4a66'],
-  ['#2b2b33', '#f0c8a0', '#4f8fc0', '#3a3f55'],
-  ['#c7843a', '#f6d2b0', '#6bab5e', '#4a4a52'],
-  ['#8a4b2a', '#d9a47a', '#b55d8a', '#33405c'],
-  ['#e3c36a', '#f6d6b8', '#5f6fd1', '#514238'],
-  ['#3a2418', '#b8835c', '#e0b04a', '#2f3a4a'],
-  ['#a33b2b', '#f4cfa8', '#4aa39a', '#3c3c48'],
-  ['#1f1f24', '#c99572', '#7d9a4a', '#2e4057'],
-  ['#6e6e78', '#f1caa6', '#8f6bc2', '#434a40'],
-  ['#2f6cb3', '#e8b98f', '#3f78c0', '#2f5a8f'],
-]
 
 const DESK_ACTS: ReadonlySet<OfficeAct> = new Set<OfficeAct>(['type', 'think', 'ask', 'rest'])
 
 const ms = (n: number): string => `${Math.round(n)}ms`
 const pct = (n: number): string => `${Number(n.toFixed(3))}%`
 
-const lookStyle = (look: number): string => {
-  const [h, s, t, p] = LOOKS[look] ?? LOOKS[1] ?? ['#000', '#000', '#000', '#000']
+/** A person's colors and which cast's head it wears; Claude keeps its own shirt. */
+const lookStyle = (walker: OfficeWalker): string => {
+  const looks = LOOKS[walker.cast] ?? LOOKS.plain
+  const [h, s, shirt, p] = walker.kind === 'janitor' ? JANITOR_LOOK : (looks[walker.look % looks.length] ?? JANITOR_LOOK)
+  const t = walker.kind === 'main' ? CLAUDE_SHIRT : shirt
 
-  return `--h:${h};--s:${s};--t:${t};--p:${p}`
+  return `--h:${h};--s:${s};--t:${t};--p:${p};--c-${walker.kind === 'janitor' ? 'plain' : walker.cast}:inline`
 }
 
 // The wait is the animation itself, not a delay before a 1 ms one: an image
@@ -409,7 +399,7 @@ export const renderOffice = (scene: OfficeScene, now: number, opts: { dark?: boo
   scene.walkers.forEach((walker, i) => {
     const walk = walking(walker, `k${i}`, now)
     const pose = poseOf(walker)
-    const style = ` style="${lookStyle(walker.look)}"`
+    const style = ` style="${lookStyle(walker)}"`
     css += walk.css
 
     if (walk.svg !== '') {

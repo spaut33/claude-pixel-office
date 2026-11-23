@@ -2,7 +2,7 @@
 
 A pixel-art office behind the chat in the Claude desktop app. Claude and the subagents it starts walk around the office and act out what Claude is doing: they search the filing cabinet while it greps, read at the bookcase, work at the server rack while a shell command runs, and rest in the kitchen when the turn is over.
 
-<img src="docs/office.svg" width="100%" alt="A pixel-art office seen from above: eight desks, a bookcase, a filing cabinet, a server rack, a globe and a kitchen with a fridge. Claude types at its desk, subagents stand at the stations, one looks into the open fridge under three sticky notes, one rests at the kitchen table.">
+<img src="docs/office.svg" width="100%" alt="A pixel-art office seen from above: eight desks, a bookcase, a filing cabinet, a server rack, a globe and a kitchen with a fridge. Claude types at its desk, subagents on different models (bearded, with headphones, with two buns) stand at the stations, one looks into the open fridge under three sticky notes, one rests at the kitchen table.">
 
 ## What happens in the office
 
@@ -18,6 +18,7 @@ A pixel-art office behind the chat in the Claude desktop app. Claude and the sub
 | reading or saving its memory (the auto-memory folder) | opens the fridge and looks inside; each saved memory leaves a sticky note on the freezer door |
 | done with its turn | rests in the kitchen after a few seconds |
 
+- People look like the model they run on: Opus is a bearded man with short hair, Fable a bearded man with long hair and glasses, Sonnet a young developer with spiky dyed hair and headphones, Haiku a young woman with two buns. Each model has eight sets of hair and clothes colors, so five subagents on one model still look different. Claude always wears its orange shirt.
 - Each subagent walks in through the door and works at a free desk, going to the same stations for its own tools. When it finishes, it rests in the kitchen for two minutes and then goes home.
 - The board on the wall shows how full the context window is, measured like the app's context meter. It is green below 50%, amber from 50% and red from 80%. Paper piles up on the desks and the floor as the context fills.
 - After the context is compacted, a janitor comes in and clears the paper away.

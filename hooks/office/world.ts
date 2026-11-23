@@ -2,7 +2,8 @@
 // (the intent); a tick turns that into walks across the room (the scene).
 // Everything here is pure: same input, same output.
 
-import type { OfficeAct, OfficeIntent, OfficeScene, OfficeWalker, OfficeWorker } from '../../types'
+import type { OfficeAct, OfficeCast, OfficeIntent, OfficeScene, OfficeWalker, OfficeWorker } from '../../types'
+import { LOOK_COUNT, castOf } from './casts'
 import {
   DESKS,
   JANITOR_ROUTE,
@@ -33,10 +34,6 @@ const IDLE_MS = 8000
 const DWELL_MS = 1200
 /** The shortest stay at a station: long enough to see the drawer open. */
 const STATION_DWELL_MS = 2000
-
-/** Looks: 0 is Claude, 1..SUB_LOOKS subagents, then the janitor. */
-export const SUB_LOOKS = 8
-export const JANITOR_LOOK = SUB_LOOKS + 1
 
 export const emptyIntent = (): OfficeIntent => ({ workers: {} })
 export const emptyScene = (): OfficeScene => ({ walkers: [] })
@@ -106,9 +103,17 @@ export const turnEnded = (intent: OfficeIntent, id: string, now: number): Office
   }))
 }
 
-/** A subagent started: its task's short description is its name. */
-export const spawned = (intent: OfficeIntent, id: string, title: string, now: number): OfficeIntent =>
-  withWorker(intent, id, now, worker => ({ ...worker, title: title.trim() === '' ? worker.title : title.trim() }))
+/** A subagent started: its task's short description is its name, and its model its looks. */
+export const spawned = (intent: OfficeIntent, id: string, title: string, now: number, model?: string): OfficeIntent =>
+  withWorker(intent, id, now, worker => ({
+    ...worker,
+    title: title.trim() === '' ? worker.title : title.trim(),
+    ...(model === undefined ? {} : { model }),
+  }))
+
+/** The model a worker runs on now: Claude's changes with `/model`. */
+export const setModel = (intent: OfficeIntent, id: string, model: string, now: number): OfficeIntent =>
+  intent.workers[id]?.model === model ? intent : withWorker(intent, id, now, worker => ({ ...worker, model }))
 
 export const compactStarted = (intent: OfficeIntent, now: number): OfficeIntent => ({
   ...without(intent, 'percent'),
@@ -350,7 +355,27 @@ const reroute = (walker: OfficeWalker, to: string, now: number): Walk => {
 export const placeOf = (walker: OfficeWalker, now: number): Pt =>
   positionOn(pointsOf(walker.from, walker.route), now - walker.departAt, speedOf(walker)).at
 
-const lookOf = (id: string): number => (id === MAIN ? 0 : 1 + (hashOf(id) % SUB_LOOKS))
+/**
+ * Which look of its cast a person wears: Claude the first, a subagent one no
+ * one else of its cast wears while there is one free.
+ */
+const lookOf = (id: string, cast: OfficeCast, others: readonly OfficeWalker[]): number => {
+  if (id === MAIN) {
+    return 0
+  }
+  const taken = new Set(others.filter(other => other.kind === 'sub' && other.cast === cast).map(other => other.look))
+  const start = hashOf(id) % LOOK_COUNT
+
+  for (let i = 0; i < LOOK_COUNT; i += 1) {
+    const look = (start + i) % LOOK_COUNT
+
+    if (!taken.has(look)) {
+      return look
+    }
+  }
+
+  return start
+}
 
 const optional = <K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> =>
   value === undefined ? {} : ({ [key]: value } as Record<K, V>)
@@ -429,7 +454,8 @@ export const advance = (scene: OfficeScene, intent: OfficeIntent, now: number): 
         {
           id,
           kind: worker.kind,
-          look: lookOf(id),
+          cast: castOf(worker.model),
+          look: lookOf(id, castOf(worker.model), others),
           title: worker.title,
           act: spot.act,
           from: [start[0], start[1]],
@@ -458,9 +484,13 @@ export const advance = (scene: OfficeScene, intent: OfficeIntent, now: number): 
     const spot = pickSpot(current, act, others)
     let next = settle(current, spot, spot.spot === destOf(current) ? walkOf(current) : reroute(current, spot.spot, now))
     const title = worker?.title ?? current.title
+    const cast = worker === undefined ? current.cast : castOf(worker.model)
 
     if (title !== next.title) {
       next = { ...next, title }
+    }
+    if (cast !== next.cast) {
+      next = { ...next, cast, look: lookOf(id, cast, others) }
     }
     if (!sameWalker(current, next)) {
       walkers = walkers.map(walker => (walker.id === id ? next : walker))
@@ -475,7 +505,7 @@ export const advance = (scene: OfficeScene, intent: OfficeIntent, now: number): 
     const round = walk(door, JANITOR_ROUTE, now, JANITOR_SPEED)
     walkers = [
       ...walkers,
-      { id: 'janitor', kind: 'janitor', look: JANITOR_LOOK, title: 'Janitor', act: 'leave', bornAt: now, ...round },
+      { id: 'janitor', kind: 'janitor', cast: 'plain', look: 0, title: 'Janitor', act: 'leave', bornAt: now, ...round },
     ]
     janitor = { startedAt: now, level: intent.compactLevel ?? 0, arriveAt: round.arriveAt }
     isChanged = true

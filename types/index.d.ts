@@ -12,6 +12,9 @@ export type OfficeAct =
   | 'idle'
   | 'leave'
 
+/** Who a person looks like: the family of the model it runs on. */
+export type OfficeCast = 'plain' | 'opus' | 'fable' | 'sonnet' | 'haiku'
+
 /** One running tool call of a worker. */
 export type OfficeRun = { act: OfficeAct; at: number }
 
@@ -19,6 +22,8 @@ export type OfficeRun = { act: OfficeAct; at: number }
 export type OfficeWorker = {
   kind: 'main' | 'sub'
   title: string
+  /** The model it runs on, as the engine names it. */
+  model?: string
   createdAt: number
   running: Record<string, OfficeRun>
   lastAct?: OfficeRun
@@ -42,6 +47,8 @@ export type OfficeIntent = {
 export type OfficeWalker = {
   id: string
   kind: 'main' | 'sub' | 'janitor'
+  cast: OfficeCast
+  /** Which of its cast's looks. */
   look: number
   title: string
   act: OfficeAct
