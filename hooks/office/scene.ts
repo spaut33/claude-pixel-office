@@ -1,7 +1,7 @@
 // Draws the office: the room, then everyone where the scene puts them. Walks
 // run in CSS, timed against `now`, so a redraw picks a walk up where it is.
 
-import type { OfficeAct, OfficeScene, OfficeWalker } from '../../types'
+import type { OfficeAct, OfficeCast, OfficeScene, OfficeWalker } from '../../types'
 import {
   CSS,
   DEFS,
@@ -508,16 +508,39 @@ const ACTS: Readonly<Record<OfficeAct, string>> = {
 }
 
 /** The backdrop in words, for a reader that cannot see it. */
+const MODEL_NAMES: Readonly<Record<OfficeCast, string>> = {
+  plain: 'another model',
+  opus: 'Opus',
+  fable: 'Fable',
+  sonnet: 'Sonnet',
+  haiku: 'Haiku',
+}
+
+/** How many subagents run on each model, the most first: "2 on Opus, 1 on Haiku". */
+const modelsOf = (subs: readonly OfficeWalker[]): string => {
+  const counts = new Map<OfficeCast, number>()
+
+  for (const walker of subs) {
+    counts.set(walker.cast, (counts.get(walker.cast) ?? 0) + 1)
+  }
+
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cast, n]) => `${n} on ${MODEL_NAMES[cast]}`)
+    .join(', ')
+}
+
 export const describeOffice = (scene: OfficeScene): string => {
   const main = scene.walkers.find(walker => walker.kind === 'main')
   const subs = scene.walkers.filter(walker => walker.kind === 'sub')
   const parts = ['A pixel office.']
 
   if (main !== undefined) {
-    parts.push(`Claude ${ACTS[main.act]}.`)
+    const model = main.cast === 'plain' ? '' : ` (${MODEL_NAMES[main.cast]})`
+    parts.push(`Claude${model} ${ACTS[main.act]}.`)
   }
   if (subs.length > 0) {
-    parts.push(`Subagents in the office: ${subs.length}.`)
+    parts.push(`Subagents in the office: ${subs.length} (${modelsOf(subs)}).`)
   }
   parts.push(scene.level === undefined ? 'Context fill is not known yet.' : `Context is ${scene.level}% full.`)
 

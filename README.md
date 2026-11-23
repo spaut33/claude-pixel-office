@@ -6,6 +6,8 @@ A pixel-art office behind the chat in the Claude desktop app. Claude and the sub
 
 ## What happens in the office
 
+<img src="docs/demo.gif" width="100%" alt="A 15-second animation of the office: Claude searches the filing cabinet, then opens the fridge and sticks a note on it while saving a memory, and heads back to its desk. A Sonnet subagent with headphones walks in to the server rack, a Haiku subagent with two buns to the globe, and a Fable subagent with a beard and glasses to the bookcase.">
+
 | When Claude is… | In the office it… |
 | --- | --- |
 | editing or writing files | types at its desk |
